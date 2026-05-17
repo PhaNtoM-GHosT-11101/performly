@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: performly-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: performly
+      POSTGRES_PASSWORD: performly
+      POSTGRES_DB: performly
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U performly -d performly"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: performly-backend
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://performly:performly@postgres:5432/performly
+      SYNC_DATABASE_URL: postgresql://performly:performly@postgres:5432/performly
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: performly-frontend
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://backend:8000
+
+volumes:
+  postgres_data:
